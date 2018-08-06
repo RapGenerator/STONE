@@ -1,0 +1,8 @@
+*.xml
+*.iml
+.idea
+.DS_Store
+__pycache__
+*.pyc
+*proxy.py
+data_clean
