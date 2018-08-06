@@ -121,22 +121,29 @@ class Seq2SeqModel(object):
 
             # 如果是训练截断
             if self.mode == 'train':
-                #
+                # decoder训练
+                # decoder的网络、初始状态和输出层。
                 self.decoder_outputs = self.decoder_train(decoder_cell, decoder_initial_state, output_layer)
-                # loss
+                # loss，使用sequence_loss计算。
+                # logits：输出的预测值;targets：真实值;mask：权重比例，根据targets句子长度得到的。
                 self.loss = sequence_loss(logits=self.decoder_outputs, targets=self.decoder_targets, weights=self.mask)
 
                 # summary
                 tf.summary.scalar('loss', self.loss)
                 self.summary_op = tf.summary.merge_all()
 
-                # optimizer
+                # optimizer使用Adam
                 optimizer = tf.train.AdamOptimizer(self.learing_rate)
+                # 获取所有参数
                 trainable_params = tf.trainable_variables()
+                # 所有参数根据loss进行梯度下降.
                 gradients = tf.gradients(self.loss, trainable_params)
+                # 梯度截断,防止梯度爆炸.
                 clip_gradients, _ = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
+                # 优化器应用梯度更新所有参数.apply_gradients()里传入(梯度,变量)的元组.
                 self.train_op = optimizer.apply_gradients(zip(clip_gradients, trainable_params))
             elif self.mode == 'decode':
+                # 解码阶段
                 self.decoder_predict_decode = self.decoder_decode(decoder_cell, decoder_initial_state, output_layer)
 
     def encoder(self):
@@ -166,24 +173,47 @@ class Seq2SeqModel(object):
         :param encoder_state: encoder的state
         :return: decoder_logits_train: decoder的predict
         '''
+        # tf.strided_slice(data,begin,end,stride):对数据进行跨步切片，起始位置，截止位置，步长，各个维度对应。
+        # 这里对真实的输出进行batch_size长的切片操作,-1:后面在每一行最前面加了一个<GO>。
         ending = tf.strided_slice(self.decoder_targets, [0, 0], [self.batch_size, -1], [1, 1])
+        # 每一行最前面加一个<GO>，tf.fill(dim,value)，dim：维度，value：值。
         decoder_input = tf.concat([tf.fill([self.batch_size, 1], self.word_to_idx['<GO>']), ending], 1)
+        # 将每一行的句子embeding。
         decoder_inputs_embedded = tf.nn.embedding_lookup(self.embedding, decoder_input)
 
+        # TrainingHelper:封装好的训练帮助类。训练时最常用的Helper，下一时刻的输入就是上一时刻的真实值。
+        # time_major:是否调换维度，时间步（即max_input_length）是否为第一维。加速训练？
+        # False：shape(batch_size,max_input_length,embedding_size)，
+        # True：shape(max_input_length，batch_size,embedding_size) ，
         training_helper = TrainingHelper(inputs=decoder_inputs_embedded,
                                          sequence_length=self.decoder_targets_length,
                                          time_major=False, name='training_helper')
+        # BasicDecoder
+        # 参数:
+        # cell: 一个 `RNNCell` 实例.
+        # helper: 一个 `Helper` 实例.
+        # initial_state: 一个 (可能组成一个tulpe)tensors 和 TensorArrays.RNNCell 的初始状态.
+        # output_layer: (可选) 一个 `tf.layers.Layer` 实例, 例如：`tf.layers.Dense`. 应用于RNN 输出层之前的可选层,用于存储结果或者采样.
+        # Raises:TypeError: 如果 `cell`, `helper` 或 `output_layer` 的类型不正确.
         training_decoder = BasicDecoder(cell=decoder_cell,
                                         helper=training_helper,
                                         initial_state=decoder_initial_state,
                                         output_layer=output_layer)
+        # dynamic
+        # 参数:
+        # decoder: BasicDecoder、BeamSearchDecoder或者自己定义的decoder类对象
+        # output_time_major: 见RNN，为真时step*batch_size*...，为假时batch_size*step*...
+        # impute_finished: Boolean，为真时会拷贝最后一个时刻的状态并将输出置零，程序运行更稳定，使最终状态和输出具有正确的值，在反向传播时忽略最后一个完成步。但是会降低程序运行速度。
+        # maximum_iterations: 最大解码步数，一般训练设置为decoder_inputs_length，预测时设置一个想要的最大序列长度即可。程序会在产生<eos>或者到达最大步数处停止。
         decoder_outputs, _, _ = dynamic_decode(decoder=training_decoder,
                                                impute_finished=True,
                                                maximum_iterations=self.max_target_sequence_length)
+        #TODO:identity作用？
         decoder_logits_train = tf.identity(decoder_outputs.rnn_output)
         return decoder_logits_train
 
     def decoder_decode(self, decoder_cell, decoder_initial_state, output_layer):
+        # start
         start_tokens = tf.ones([self.batch_size, ], tf.int32) * self.word_to_idx['<GO>']
         end_token = self.word_to_idx['<EOS>']
 
@@ -231,12 +261,14 @@ class Seq2SeqModel(object):
         return cell
 
     def train(self, sess, batch):
+        # 每个batch的训练需要feed的数据.
         feed_dict = {self.encoder_inputs: batch.encoder_inputs,
                      self.encoder_inputs_length: batch.encoder_inputs_length,
                      self.decoder_targets: batch.decoder_targets,
                      self.decoder_targets_length: batch.decoder_targets_length,
                      self.keep_prob: 0.5,
                      self.batch_size: len(batch.encoder_inputs)}
+        # 运行计算
         _, loss, summary = sess.run([self.train_op, self.loss, self.summary_op], feed_dict=feed_dict)
         return loss, summary
 

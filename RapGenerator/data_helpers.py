@@ -82,37 +82,52 @@ def create_dic_and_map(sources, targets):
 
 
 def createBatch(sources, targets):
+    # 创建Batch对象
     batch = Batch()
+    # 得到每个batch的encoder的输入长度
     batch.encoder_inputs_length = [len(source) for source in sources]
+    # 得到每个batch的decoder的输出长度
     batch.decoder_targets_length = [len(target) + 1 for target in targets]
 
+    # 每个batch的最大的输入长度
     max_source_length = max(batch.encoder_inputs_length)
+    # 每个batch的最大的输出长度
     max_target_length = max(batch.decoder_targets_length)
 
     for source in sources:
         # 将source进行反序并PAD
+        # 反序
         source = list(reversed(source))
+        # 填充,对小于最大长度的进行填充
         pad = [padToken] * (max_source_length - len(source))
+        # 填充后的当作输入
         batch.encoder_inputs.append(pad + source)
 
     for target in targets:
         # 将target进行PAD，并添加EOS符号
+        # 填充的pad,最大长度减去当前长度再减去1.
         pad = [padToken] * (max_target_length - len(target) - 1)
+        # 没一句加一个<EOS>符
         eos = [eosToken] * 1
+        # 每一句加一个<EOS>符再加入填充.
         batch.decoder_targets.append(target + eos + pad)
 
     return batch
 
 
 def getBatches(sources_data, targets_data, batch_size):
+    # 所有训练数据的长度
     data_len = len(sources_data)
 
+    # 根据batch_size循环划分数据
     def genNextSamples():
         for i in range(0, len(sources_data), batch_size):
             yield sources_data[i:min(i + batch_size, data_len)], targets_data[i:min(i + batch_size, data_len)]
-
+    # 将数据划分为多个batch,存在列表中
     batches = []
+    # 对数据进行划分
     for sources, targets in genNextSamples():
+        # 得到具体的某个batch
         batch = createBatch(sources, targets)
         batches.append(batch)
 

@@ -41,7 +41,9 @@ if __name__ == '__main__':
 
         for e in range(epochs):
             print("----- Epoch {}/{} -----".format(e + 1, epochs))
+            # 划分batches
             batches = getBatches(sources_data, targets_data, batch_size)
+            # 对每个batch进行训练
             for nextBatch in batches:
                 loss, summary = model.train(sess, nextBatch)
                 perplexity = math.exp(float(loss)) if loss < 300 else float('inf')
