@@ -40,12 +40,17 @@ if __name__ == '__main__':
         sess.run(tf.global_variables_initializer())
 
         for e in range(epochs):
+            # 打印当前epochs次数
             print("----- Epoch {}/{} -----".format(e + 1, epochs))
             # 划分batches
             batches = getBatches(sources_data, targets_data, batch_size)
             # 对每个batch进行训练
             for nextBatch in batches:
+                # 训练得到loss和summary
                 loss, summary = model.train(sess, nextBatch)
+                # 计算perplexity
                 perplexity = math.exp(float(loss)) if loss < 300 else float('inf')
+                # 打印输出loss和perplexity
                 print("----- Loss %.2f -- Perplexity %.2f" % (loss, perplexity))
+            # 保存模型
             model.saver.save(sess, model_dir + 'seq2seq.ckpt')

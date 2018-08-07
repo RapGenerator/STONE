@@ -122,7 +122,9 @@ def getBatches(sources_data, targets_data, batch_size):
     # 根据batch_size循环划分数据
     def genNextSamples():
         for i in range(0, len(sources_data), batch_size):
+            # yield:相当于返回一个生成器中的值,list,数据太长,yield每次遍历只占用其中每个值的内存,不是整个list
             yield sources_data[i:min(i + batch_size, data_len)], targets_data[i:min(i + batch_size, data_len)]
+
     # 将数据划分为多个batch,存在列表中
     batches = []
     # 对数据进行划分
@@ -136,21 +138,24 @@ def getBatches(sources_data, targets_data, batch_size):
 
 def sentence2enco(sentence, word2id):
     '''
-    测试的时候将用户输入的句子转化为可以直接feed进模型的数据，现将句子转化成id，然后调用createBatch处理
+    测试的时候将用户输入的句子转化为可以直接feed进模型的数据，先将句子转化成id，然后调用createBatch处理
     :param sentence: 用户输入的句子
     :param word2id: 单词与id之间的对应关系字典
     :return: 处理之后的数据，可直接feed进模型进行预测
     '''
     if sentence == '':
         return None
-    # 分词
+    # 对输入的句子进行分词
     seg_list = jieba.cut(sentence.strip(), cut_all=False)
+    # 分词后的词语list
     cutted_line = [e for e in seg_list]
 
     # 将每个单词转化为id
     wordIds = []
     for word in cutted_line:
+        # 从word2id词典中找到对应的id
         wordIds.append(word2id.get(word, unknownToken))
+    # 打印输入句子分词后每个词对应的id
     print(wordIds)
     # 调用createBatch构造batch
     batch = createBatch([wordIds], [[]])

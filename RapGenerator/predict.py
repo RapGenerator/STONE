@@ -15,6 +15,7 @@ def predict_ids_to_seq(predict_ids, id2word, beam_szie):
     :param id2word: vocab字典
     :return:
     '''
+    # 对每句话进行输出
     for single_predict in predict_ids:
         for i in range(beam_szie):
             predict_list = np.ndarray.tolist(single_predict[:, :, i])
@@ -46,19 +47,26 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         model = Seq2SeqModel(rnn_size, num_layers, embedding_size, learning_rate, word_to_id, mode='decode',
                              use_attention=True, beam_search=True, beam_size=5, cell_type='LSTM', max_gradient_norm=5.0)
+        # 加载训练好的模型
         ckpt = tf.train.get_checkpoint_state(model_dir)
+        # 如果模型存在就加载训练好的模型
         if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
             print('Reloading model parameters..')
             model.saver.restore(sess, ckpt.model_checkpoint_path)
-        else:
+        else:  # 模型不存在报错
             raise ValueError('No such file:[{}]'.format(model_dir))
         # model.saver.restore(sess, model_dir)
+        # 输入第一句
         sys.stdout.write("> ")
         sys.stdout.flush()
         sentence = sys.stdin.readline()
+        # 用上一句的输出作为下一句的输入,循环预测输出
         while sentence:
+            # 将输入的句子转换为可以输入模型的batch
             batch = sentence2enco(sentence, word_to_id)
+            # 模型预测得到句子每个词的id
             predicted_ids = model.infer(sess, batch)
+            # 将每个词的id转换为对应的词语并输出
             predict_ids_to_seq(predicted_ids, id_to_word, 5)
             print("> ", "")
             sys.stdout.flush()

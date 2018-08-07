@@ -128,8 +128,12 @@ class Seq2SeqModel(object):
                 # logits：输出的预测值;targets：真实值;mask：权重比例，根据targets句子长度得到的。
                 self.loss = sequence_loss(logits=self.decoder_outputs, targets=self.decoder_targets, weights=self.mask)
 
-                # summary
+                # 当你想知道 learning rate 如何变化时，目标函数如何变化时，就可以通过向节点附加 tf.summary.scalar 操作来分别输出学习速度和期望误差，
+                # 可以给每个 scalary_summary 分配一个有意义的标签为 'learning rate' 和 'loss function'，执行后就可以看到可视化的图表。
                 tf.summary.scalar('loss', self.loss)
+                # 在 TensorFlow 中，所有的操作只有当你执行，或者一个操作依赖于它的输出时才会运行。
+                # 为了生成 summaries，我们需要运行所有 summary nodes，所以就用 tf.summary.merge_all 来将它们合并为一个操作，
+                # 这样就可以产生所有的 summary data。
                 self.summary_op = tf.summary.merge_all()
 
                 # optimizer使用Adam
@@ -152,7 +156,7 @@ class Seq2SeqModel(object):
         :return: encoder_outputs: 用于attention，batch_size*encoder_inputs_length*rnn_size
                  encoder_state: 用于decoder的初始化状态，batch_size*rnn_size
         '''
-        # 实验命名空间‘encoder’，TODO：在这里有什么用？
+        # 实验命名空间‘encoder’，所有的计算图在一个命名空间下
         with tf.variable_scope('encoder'):
             # 创建网络结构
             encoder_cell = self.create_rnn_cell()
@@ -199,7 +203,7 @@ class Seq2SeqModel(object):
                                         helper=training_helper,
                                         initial_state=decoder_initial_state,
                                         output_layer=output_layer)
-        # dynamic
+        # dynamic_decode
         # 参数:
         # decoder: BasicDecoder、BeamSearchDecoder或者自己定义的decoder类对象
         # output_time_major: 见RNN，为真时step*batch_size*...，为假时batch_size*step*...
@@ -208,15 +212,17 @@ class Seq2SeqModel(object):
         decoder_outputs, _, _ = dynamic_decode(decoder=training_decoder,
                                                impute_finished=True,
                                                maximum_iterations=self.max_target_sequence_length)
-        #TODO:identity作用？
+        # TODO:identity作用？
         decoder_logits_train = tf.identity(decoder_outputs.rnn_output)
         return decoder_logits_train
 
     def decoder_decode(self, decoder_cell, decoder_initial_state, output_layer):
-        # start
+        # 每句的开始用<GO>标记
         start_tokens = tf.ones([self.batch_size, ], tf.int32) * self.word_to_idx['<GO>']
+        # 每句的结束用<EOS>标记
         end_token = self.word_to_idx['<EOS>']
 
+        # 如果使用BeamSearch,使用BeamSearchDecoder进行解码.
         if self.beam_search:
             inference_decoder = BeamSearchDecoder(cell=decoder_cell,
                                                   embedding=self.embedding,
@@ -225,19 +231,26 @@ class Seq2SeqModel(object):
                                                   initial_state=decoder_initial_state,
                                                   beam_width=self.beam_size,
                                                   output_layer=output_layer)
-        else:
+        else:  # 不使用BeamSearch,使用GreedyEmbeddingHelper帮助类.
             decoding_helper = GreedyEmbeddingHelper(embedding=self.embedding,
                                                     start_tokens=start_tokens,
                                                     end_token=end_token)
+            # 用BasicDecoder进行解码.
             inference_decoder = BasicDecoder(cell=decoder_cell,
                                              helper=decoding_helper,
                                              initial_state=decoder_initial_state,
                                              output_layer=output_layer)
 
+        # dynamic_decode
+        # 参数:
+        # decoder: BasicDecoder、BeamSearchDecoder或者自己定义的decoder类对象
+        # output_time_major: 见RNN，为真时step*batch_size*...，为假时batch_size*step*...
+        # impute_finished: Boolean，为真时会拷贝最后一个时刻的状态并将输出置零，程序运行更稳定，使最终状态和输出具有正确的值，在反向传播时忽略最后一个完成步。但是会降低程序运行速度。
+        # maximum_iterations: 最大解码步数，一般训练设置为decoder_inputs_length，预测时设置一个想要的最大序列长度即可。程序会在产生<eos>或者到达最大步数处停止。
         decoder_outputs, _, _ = dynamic_decode(decoder=inference_decoder, maximum_iterations=50)
-        if self.beam_search:
+        if self.beam_search:  # 如果使用BeamSearch,输出为预测的predicted_ids
             decoder_predict_decode = decoder_outputs.predicted_ids
-        else:
+        else:  # 扩充一个维度,即在最后添加一列 TODO:干什么?
             decoder_predict_decode = tf.expand_dims(decoder_outputs.sample_id, -1)
         return decoder_predict_decode
 
@@ -268,7 +281,7 @@ class Seq2SeqModel(object):
                      self.decoder_targets_length: batch.decoder_targets_length,
                      self.keep_prob: 0.5,
                      self.batch_size: len(batch.encoder_inputs)}
-        # 运行计算
+        # 运行计算,得到loss和summary
         _, loss, summary = sess.run([self.train_op, self.loss, self.summary_op], feed_dict=feed_dict)
         return loss, summary
 
