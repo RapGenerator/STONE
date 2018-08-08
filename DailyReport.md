@@ -1,3 +1,25 @@
+# 2018-08-07
+### Chinese Poetry Generation with Planning based Neural Network:
+
+user's intent -> 4 keyword -> line1 ->line2--line4
+
+#### topic --> lyrics:
+user's intent:one keyword or a set of keywords;one sectence or one document.
+
+to several keywords:expansion and extraction:
+
+#### expansion:
+    co-occurrence
+    RNNLM
+    knowledge
+#### extraction:
+    TextRank
+    TF-IDF
+
+### Skip-Thought Vectors:
+One encoder generates two decoders
+
+
 # 2018-08-06
 代码注解基本完成
 

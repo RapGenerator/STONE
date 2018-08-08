@@ -48,7 +48,7 @@ if __name__ == '__main__':
             for nextBatch in batches:
                 # 训练得到loss和summary
                 loss, summary = model.train(sess, nextBatch)
-                # 计算perplexity
+                # 计算perplexity,inf表示正无穷
                 perplexity = math.exp(float(loss)) if loss < 300 else float('inf')
                 # 打印输出loss和perplexity
                 print("----- Loss %.2f -- Perplexity %.2f" % (loss, perplexity))
