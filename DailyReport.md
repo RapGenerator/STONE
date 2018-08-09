@@ -1,3 +1,6 @@
+# 2018-08-08
+押韵统计,包括排韵 隔行韵 交韵 抱韵.
+
 # 2018-08-07
 ### Chinese Poetry Generation with Planning based Neural Network:
 
